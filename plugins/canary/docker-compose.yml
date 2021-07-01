@@ -1,0 +1,98 @@
+version: '3'
+
+services:
+  postgres:
+    container_name: canary_postgres
+    image: postgres:9.6
+    restart: on-failure
+    environment:
+      POSTGRES_PASSWORD: kong
+      POSTGRES_DB: kong
+      POSTGRES_USER: kong
+    networks:
+      - code-network
+  konga:
+    container_name: canary_konga
+    image: pantsel/konga:0.14.1
+    networks:
+      - code-network
+    ports:
+      - '1337:1337/tcp'
+    restart: always
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+#      DB_ADAPTER: postgres
+      NO_AUTH: "true"
+#      DB_HOST: postgres
+#      DB_PORT: 5432
+#      DB_USER: kong
+#      DB_PASSWORD: kong
+#      DB_DATABASE: kong
+  kong:
+    container_name: canary_kong
+    image: kong:1.4.2-alpine
+    networks:
+      - code-network
+    depends_on:
+      - postgres
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: postgres
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+    ports:
+      - '8000:8000'
+#      - '8443:8443'
+      - '8001:8001'
+#      - '8444:8444'
+    volumes:
+      - ./plugin:/usr/local/share/lua/5.1/kong/plugins/canary_custom
+      - ./constants.lua:/usr/local/share/lua/5.1/kong/constants.lua
+#    command:
+#      - kong
+#      - migrations
+#      - bootstrap
+
+  redis:
+    container_name: canary_redis
+    image: redis:latest
+    ports:
+      - '6379:6379'
+    networks:
+      - code-network
+    command: 'redis-server --requirepass test123'
+
+  service-a:
+    container_name: canary_service_a
+    restart: on-failure
+    build:
+      dockerfile: dockerfile
+      context: ./service
+    environment:
+      SERVICE_NAME: a
+      HOST: 0.0.0.0:9001
+    networks:
+      - code-network
+
+  service-b:
+    container_name: canary_service_b
+    restart: on-failure
+    build:
+      dockerfile: dockerfile
+      context: ./service
+    environment:
+      SERVICE_NAME: b
+      HOST: 0.0.0.0:9001
+    networks:
+      - code-network
+
+networks:
+  code-network:
+    driver: bridge
