@@ -24,10 +24,12 @@ function replace_host_from_redis(red, orgcode)
     if type(value) == "string" and value ~= ""
     then
         local values = strsplit(value, ":")
-        if values[1] ~= "" then
+        if type(values[1]) == "string" and values[1] ~= "" then
             ngx.ctx.balancer_data.host = values[1]
+            -- 反向代理到其他网关，需要保持路径不变
+            ngx.var.upstream_uri = ngx.var.uri
         end
-        if values[2] ~= "" then
+        if type(values[2]) == "string" and values[2] ~= "" then
             ngx.ctx.balancer_data.port = values[2]
         end
         return
